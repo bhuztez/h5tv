@@ -3,14 +3,17 @@ function onload() {
     var xhr = new XMLHttpRequest()
     xhr.open("GET", "http://127.0.0.1:8001/");
     xhr.responseType = "json";
-    xhr.onload = function () {
-        for (channel of xhr.response) {
-            var aElem = document.createElement("a");
-            aElem.href = "/watch.html?" + channel.id;
-            aElem.appendChild(document.createTextNode(decodeURIComponent(channel.name)));
-            resultsElem.appendChild(aElem);
+    xhr.addEventListener(
+        "load",
+        function () {
+            for (channel of xhr.response) {
+                var aElem = document.createElement("a");
+                aElem.href = "/watch.html?" + channel.id;
+                aElem.appendChild(document.createTextNode(decodeURIComponent(channel.name)));
+                resultsElem.appendChild(aElem);
+            }
         }
-    }
+    );
     xhr.send();
 }
 

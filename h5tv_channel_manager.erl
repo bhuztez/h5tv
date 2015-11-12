@@ -16,7 +16,7 @@ start_link() ->
 init([]) ->
     ets:new(
       h5tv_channels,
-      [named_table, set, protected]),
+      [named_table, set, protected, {read_concurrency, true}]),
     {ok, 1}.
 
 

@@ -1,11 +1,5 @@
 "use strict";
 
-var videoElem;
-var mediaRecorder;
-var name;
-var eventSource;
-
-
 function get_vint_length(c) {
     var i;
     for (i=9; c>0; i--) {
@@ -58,11 +52,12 @@ function parse_header_size(buffer) {
 }
 
 
-function Uploader() {
+function onload() {
+    var videoElem = videoElem = document.getElementById("video");
     var buffers = [];
     var paths = [];
     var uploading = false;
-    var started = false;
+    var header_uploaded = false;
 
     function do_upload(path, data) {
         var xhr = new XMLHttpRequest();
@@ -72,29 +67,35 @@ function Uploader() {
             function() {
                 uploading = false;
                 notify();
-            });
+            }
+        );
 
         xhr.send(data);
     }
 
-    function start_upload() {
+    function upload() {
         uploading = true;
         var path = paths.shift();
         var buffer = buffers.shift();
 
-        if (started) {
+        if (header_uploaded) {
             do_upload(path, buffer);
             return
         }
 
-        started = true;
+        header_uploaded = true;
         var reader = new FileReader();
-        reader.onload = function() {
-            var header_size = parse_header_size(this.result);
-            var header_buffer = this.result.slice(0, header_size);
-            buffers.unshift(this.result.slice(header_size));
-            do_upload(path, header_buffer);
-        };
+
+        reader.addEventListener(
+            "load",
+            function() {
+                var header_size = parse_header_size(this.result);
+                var header_buffer = this.result.slice(0, header_size);
+                buffers.unshift(this.result.slice(header_size));
+                do_upload(path, header_buffer);
+            }
+        );
+
         reader.readAsArrayBuffer(buffer);
     }
 
@@ -108,30 +109,9 @@ function Uploader() {
         if (paths.length === 0)
             return;
 
-        start_upload();
+        upload();
     }
 
-
-    return {
-        add_path: function(path) {
-            if (paths.indexOf(path) == -1) {
-                paths.push(path);
-                notify();
-            }
-        },
-
-        add_data: function(data) {
-            buffers.push(data);
-            notify();
-        }
-    }
-}
-
-var uploader = Uploader();
-
-function onload() {
-    name = window.location.search.slice(6);
-    videoElem = document.getElementById("video");
 
     navigator.mediaDevices.getUserMedia(
         { video: true }
@@ -140,15 +120,17 @@ function onload() {
             videoElem.src = URL.createObjectURL(stream);
             videoElem.play();
 
-            mediaRecorder = new MediaRecorder(stream);
+            var mediaRecorder = new MediaRecorder(stream);
             mediaRecorder.addEventListener(
                 "dataavailable",
                 function(event) {
-                    uploader.add_data(event.data);
+                    buffers.push(event.data);
+                    notify();
                 }
             );
 
-            eventSource = new EventSource("http://127.0.0.1:8001/live/" + name);
+            var name = window.location.search.slice(6);
+            var eventSource = new EventSource("http://127.0.0.1:8001/live/" + name);
             eventSource.addEventListener(
                 "open",
                 function(event) {
@@ -159,7 +141,10 @@ function onload() {
             eventSource.addEventListener(
                 "message",
                 function(event) {
-                    uploader.add_path(event.data);
+                    if (paths.indexOf(event.data) == -1) {
+                        paths.push(event.data);
+                        notify();
+                    }
                 }
             );
 
